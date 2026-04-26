@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { ArrowRight, CheckCircle2, Bot, Map } from "lucide-react";
+import { ArrowRight, CheckCircle2, Bot, Map, Sparkles } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 
 export default function Home() {
@@ -41,6 +41,14 @@ export default function Home() {
               <Bot className="ml-2 h-5 w-5" />
             </Button>
           </Link>
+          {profile.hasCompletedOnboarding && (
+            <Link href="/impact">
+              <Button size="lg" variant="secondary" className="w-full sm:w-auto text-base rounded-full glass shadow-lg border-primary/20">
+                <Sparkles className="mr-2 h-4 w-4 text-primary" />
+                Impact Simulator
+              </Button>
+            </Link>
+          )}
         </div>
       </motion.div>
 

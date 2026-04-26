@@ -11,6 +11,7 @@ type UserProfile = {
   hasCompletedOnboarding: boolean;
   completedSteps: string[];
   votingPlan: ElectionStep[];
+  selectedIssues: string[];
 };
 
 type UserContextType = {
@@ -26,6 +27,7 @@ const defaultProfile: UserProfile = {
   hasCompletedOnboarding: false,
   completedSteps: [],
   votingPlan: [],
+  selectedIssues: [],
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);

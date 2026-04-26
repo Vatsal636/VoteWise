@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Vote, Bot, Map, User } from "lucide-react";
+import { Vote, Bot, Map, User, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ export function Navbar() {
     { href: "/journey", label: "Journey", icon: Map },
     { href: "/timeline", label: "Timeline", icon: Vote },
     { href: "/assistant", label: "Assistant", icon: Bot },
+    { href: "/impact", label: "Impact", icon: Sparkles },
     { href: "/guide", label: "Profile", icon: User },
   ];
 
