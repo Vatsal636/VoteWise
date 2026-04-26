@@ -5,10 +5,12 @@ import { useUser } from "@/context/UserContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, RefreshCcw, CheckCircle2 } from "lucide-react";
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, RefreshCcw, CheckCircle2, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ElectionStep } from "@/lib/gemini";
 import { VotingPlanCard } from "@/components/plan/VotingPlanCard";
+import { VoiceAssistantControls } from "@/components/assistant/VoiceAssistantControls";
+import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 
 type Message = {
   id: string;
@@ -21,6 +23,8 @@ type Message = {
 
 export default function AssistantPage() {
   const { profile, updateProfile } = useUser();
+  const { speak, stop, isSpeaking, currentlySpeakingId, isSupported: isSynthesisSupported } = useSpeechSynthesis();
+  
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -32,18 +36,49 @@ export default function AssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const quickActions = [
-    "I'm a first-time voter",
     "I lost my voter ID",
     "I moved to a new city",
-    "I missed registration",
+    "I'm voting for the first time",
   ];
 
   const handleQuickAction = (action: string) => {
     setQuery(action);
-    // We don't auto-submit immediately so the user sees it populate, but let's just auto submit for better demo flow
     setTimeout(() => {
       document.getElementById("chat-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
     }, 100);
+  };
+
+  const handleVoiceTranscript = (text: string) => {
+    setQuery(text);
+    // Auto-submit if it seems like a complete thought (more than 3 words)
+    // Otherwise, just leave it in the input field for the user to edit/confirm.
+    if (text.trim().split(" ").length > 3) {
+      setTimeout(() => {
+        document.getElementById("chat-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      }, 500);
+    }
+  };
+
+  const handleReadAloud = (msg: Message) => {
+    if (isSpeaking && currentlySpeakingId === msg.id) {
+      stop();
+      return;
+    }
+    
+    // Create a concise summary of the steps
+    let summaryText = "";
+    if (msg.text) {
+      summaryText += msg.text + ". ";
+    }
+    if (msg.steps && msg.steps.length > 0) {
+      summaryText += "Here are your steps. ";
+      msg.steps.forEach((step, index) => {
+        summaryText += `Step ${index + 1}: ${step.action}. `;
+      });
+      summaryText += "Please remember this is a guide, verify with official authorities.";
+    }
+    
+    speak(summaryText, msg.id);
   };
 
   const applyPlanUpdate = (msgId: string, updatedPlan: ElectionStep[]) => {
@@ -54,6 +89,9 @@ export default function AssistantPage() {
   const handleSubmit = async (e: React.FormEvent | Event) => {
     e.preventDefault();
     if (!query.trim()) return;
+
+    // Stop speaking if user submits a new query
+    if (isSpeaking) stop();
 
     const userMessage: Message = { id: Date.now().toString(), role: "user", text: query };
     setMessages((prev) => [...prev, userMessage]);
@@ -116,6 +154,26 @@ export default function AssistantPage() {
                 </div>
 
                 <div className={`flex-1 max-w-[80%] ${msg.role === "user" ? "text-right" : ""}`}>
+                  
+                  {/* AI Output Actions Bar */}
+                  {msg.role === "assistant" && msg.id !== "welcome" && isSynthesisSupported && (
+                    <div className="flex justify-end mb-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReadAloud(msg)}
+                        className={`text-xs h-7 rounded-full px-3 ${isSpeaking && currentlySpeakingId === msg.id ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                        aria-label={isSpeaking && currentlySpeakingId === msg.id ? "Stop voice summary" : "Read summary aloud"}
+                      >
+                        {isSpeaking && currentlySpeakingId === msg.id ? (
+                          <><VolumeX className="h-3 w-3 mr-1.5" /> Stop voice</>
+                        ) : (
+                          <><Volume2 className="h-3 w-3 mr-1.5" /> Read aloud</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
                   {msg.text && (
                     <div className={`inline-block rounded-2xl px-5 py-3 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
                       {msg.text}
@@ -208,7 +266,11 @@ export default function AssistantPage() {
               </button>
             ))}
           </div>
-          <form id="chat-form" onSubmit={handleSubmit} className="flex gap-2">
+          <form id="chat-form" onSubmit={handleSubmit} className="flex gap-2 items-center">
+            <VoiceAssistantControls 
+              onTranscript={handleVoiceTranscript} 
+              disabled={isLoading}
+            />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
