@@ -1,65 +1,81 @@
-import Image from "next/image";
+"use client";
+
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { ArrowRight, CheckCircle2, Bot, Map } from "lucide-react";
+import { useUser } from "@/context/UserContext";
 
 export default function Home() {
+  const { profile } = useUser();
+  const targetHref = profile.hasCompletedOnboarding ? "/journey" : "/guide";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col items-center justify-center min-h-[80vh] text-center space-y-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6 max-w-3xl"
+      >
+        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
+          Your Personal Election Coach
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+          Vote with Confidence.
+        </h1>
+        <p className="text-lg sm:text-xl text-muted-foreground">
+          Step-by-step guidance tailored to your situation. Stop guessing and let AI navigate the voting process for you.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+          <Link href={targetHref}>
+            <Button size="lg" className="w-full sm:w-auto text-base rounded-full shadow-lg">
+              {profile.hasCompletedOnboarding ? "Continue Journey" : "Start Your Journey"}
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
+          <Link href="/assistant">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto text-base rounded-full glass">
+              Ask Assistant
+              <Bot className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </div>
-      </main>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl pt-12"
+      >
+        {[
+          {
+            title: "Personalized Steps",
+            description: "We adapt to your age, location, and voting history.",
+            icon: Map,
+          },
+          {
+            title: "Explainable AI",
+            description: "Understand exactly *why* you need to take each step.",
+            icon: Bot,
+          },
+          {
+            title: "Action-Oriented",
+            description: "No long paragraphs. Just clear, actionable tasks.",
+            icon: CheckCircle2,
+          },
+        ].map((feature, i) => (
+          <div key={i} className="flex flex-col items-center text-center space-y-3 p-6 rounded-2xl glass">
+            <div className="bg-primary/10 p-3 rounded-full text-primary">
+              <feature.icon className="h-6 w-6" />
+            </div>
+            <h3 className="font-semibold text-lg">{feature.title}</h3>
+            <p className="text-sm text-muted-foreground">{feature.description}</p>
+          </div>
+        ))}
+      </motion.div>
     </div>
   );
 }
