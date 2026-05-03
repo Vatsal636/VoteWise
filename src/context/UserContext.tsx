@@ -12,6 +12,7 @@ type UserProfile = {
   completedSteps: string[];
   votingPlan: ElectionStep[];
   selectedIssues: string[];
+  language: string;
 };
 
 type UserContextType = {
@@ -28,6 +29,7 @@ const defaultProfile: UserProfile = {
   completedSteps: [],
   votingPlan: [],
   selectedIssues: [],
+  language: "English",
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -40,7 +42,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("votewise-profile");
     if (saved) {
       try {
-        setProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Merge with defaults for new fields
+        setProfile({ ...defaultProfile, ...parsed });
       } catch (e) {
         console.error("Failed to parse user profile from local storage", e);
       }

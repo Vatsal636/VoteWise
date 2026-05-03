@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { motion } from "framer-motion";
-import { User, MapPin, Sparkles, Target, ArrowRight, CheckCircle2, Clock, Bot, Map, MessageSquare, AlertCircle } from "lucide-react";
+import { User, MapPin, Sparkles, Target, ArrowRight, CheckCircle2, Clock, Bot, Map, MessageSquare, AlertCircle, Globe } from "lucide-react";
 import Link from "next/link";
 
 export default function GuidePage() {
@@ -24,10 +24,13 @@ export default function GuidePage() {
     ageGroup: profile.ageGroup || "",
     isFirstTimeVoter: profile.isFirstTimeVoter,
     location: profile.location || "",
+    language: profile.language || "English",
   });
 
+  const LANGUAGES = ["English", "हिन्दी (Hindi)", "தமிழ் (Tamil)", "বাংলা (Bengali)", "తెలుగు (Telugu)", "मराठी (Marathi)"];
+
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 4) setStep(step + 1);
     else {
       // If they are just editing, don't overwrite their entire plan unless necessary, 
       // but for simplicity of this demo, we can just regenerate base plan or keep existing.
@@ -71,9 +74,9 @@ export default function GuidePage() {
           <Card className="border-primary/20 shadow-xl shadow-primary/5 glass">
             <CardHeader>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Step {step} of 3</span>
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Step {step} of 4</span>
                 <div className="flex gap-1">
-                  {[1, 2, 3].map((s) => (
+                  {[1, 2, 3, 4].map((s) => (
                     <div key={s} className={`h-1.5 w-6 rounded-full ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
                   ))}
                 </div>
@@ -82,11 +85,13 @@ export default function GuidePage() {
                 {step === 1 && "What's your age group?"}
                 {step === 2 && "Are you a first-time voter?"}
                 {step === 3 && "Where will you be voting?"}
+                {step === 4 && "Preferred language?"}
               </CardTitle>
               <CardDescription>
                 {step === 1 && "This helps us tailor deadlines and requirements."}
                 {step === 2 && "We'll prioritize registration if you are."}
                 {step === 3 && "Rules vary by state and county."}
+                {step === 4 && "AI responses will be adapted to your preferred language."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -132,6 +137,20 @@ export default function GuidePage() {
                   />
                 </div>
               )}
+              {step === 4 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {LANGUAGES.map((lang) => (
+                    <Button
+                      key={lang}
+                      variant={formData.language === lang ? "default" : "outline"}
+                      className="w-full text-sm"
+                      onClick={() => setFormData({ ...formData, language: lang })}
+                    >
+                      {lang}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex justify-between">
               {step > 1 ? (
@@ -144,10 +163,11 @@ export default function GuidePage() {
                 disabled={
                   (step === 1 && !formData.ageGroup) ||
                   (step === 2 && formData.isFirstTimeVoter === null) ||
-                  (step === 3 && !formData.location)
+                  (step === 3 && !formData.location) ||
+                  (step === 4 && !formData.language)
                 }
               >
-                {step === 3 ? "Save Profile" : "Continue"}
+                {step === 4 ? "Save Profile" : "Continue"}
               </Button>
             </CardFooter>
           </Card>
@@ -177,6 +197,9 @@ export default function GuidePage() {
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground bg-secondary px-2 py-0.5 rounded-full flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> {profile.location}
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground bg-secondary px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Globe className="h-3 w-3" /> {profile.language || "English"}
                 </span>
               </div>
               <h2 className="text-2xl font-bold">You are a {profile.isFirstTimeVoter ? "first-time" : "returning"} voter in {profile.location}.</h2>
