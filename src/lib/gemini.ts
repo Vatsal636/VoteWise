@@ -79,12 +79,9 @@ Rules for suggestedPlanUpdate:
 
 function getAdvisorModel() {
   return genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     systemInstruction: ADVISOR_SYSTEM_INSTRUCTION,
-    tools: [{ googleSearchRetrieval: {} }],
-    generationConfig: {
-      responseMimeType: "application/json",
-    },
+    tools: [{ googleSearch: {} }]
   });
 }
 
@@ -155,7 +152,7 @@ export async function generateImpactSimulation(
 
   const lang = userProfile.language || "English";
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
   });
 
@@ -207,7 +204,7 @@ export async function analyzeDocument(
 
   const lang = userProfile.language || "English";
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json" },
   });
 
