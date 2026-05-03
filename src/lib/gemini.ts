@@ -1,7 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
+
+// ── Types ──────────────────────────────────────────────────────────────────
 
 export type ElectionStep = {
   id: string;
@@ -17,34 +19,252 @@ export type AssistantResponse = {
   suggestedPlanUpdate?: ElectionStep[] | null;
 };
 
-export async function getElectionAdvice(
-  query: string,
-  userProfile: { ageGroup: string; isFirstTimeVoter: boolean | null; location: string; votingPlan?: ElectionStep[] }
-): Promise<AssistantResponse> {
-  if (!apiKey) {
-    console.warn("GEMINI_API_KEY is missing. Returning fallback data.");
-    return {
-      adviceSteps: [
-        {
-          id: "error-no-api",
-          title: "API Key Missing",
-          action: "Please configure your GEMINI_API_KEY in the environment.",
-          reasoning: "The AI assistant cannot generate personalized advice without API access.",
-          confidence: "High",
-        },
-      ]
-    };
-  }
+export type ImpactResponse = {
+  participationScenario: { points: string[] };
+  nonParticipationScenario: { points: string[] };
+  futureSnapshot: { withParticipation: string; withoutParticipation: string };
+  confidenceLevel: string;
+};
 
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-flash-latest",
+export type ScannerResponse = {
+  documentType: string;
+  extractedInfo: Record<string, string>;
+  missingFields: string[];
+  nextSteps: ElectionStep[];
+  summary: string;
+};
+
+export type UserProfile = {
+  ageGroup: string;
+  isFirstTimeVoter: boolean | null;
+  location: string;
+  votingPlan?: ElectionStep[];
+  language?: string;
+};
+
+// ── System Instructions ─────────────────────────────────────────────────────
+
+const ADVISOR_SYSTEM_INSTRUCTION = `You are VoteWise AI, an intelligent, personal election coach and civic assistant.
+
+Your role:
+- Provide structured, actionable guidance for voters
+- Help with voter registration, ID issues, relocation, first-time voting
+- Use Google Search grounding to include real, factual, location-specific information when possible
+- Be non-partisan — NEVER recommend specific parties or candidates
+- Always explain WHY each step matters
+- Remember conversation context — reference earlier messages when relevant
+
+You MUST respond in valid JSON matching this schema:
+{
+  "adviceSteps": [
+    {
+      "id": "unique-string-id",
+      "title": "Step Title",
+      "action": "Clear action the user should take",
+      "reasoning": "Why this step matters",
+      "confidence": "High" | "Medium" | "Low",
+      "source": "Official source or reference"
+    }
+  ],
+  "suggestedPlanUpdate": null
+}
+
+Rules for suggestedPlanUpdate:
+- Only suggest if the user's situation requires updating their voting plan (e.g., lost ID, moved)
+- PRESERVE existing plan steps and their exact "id" strings
+- Append or insert new relevant steps
+- If no update needed, set to null`;
+
+// ── Advisor Model (Chat + Grounding + Streaming) ──────────────────────────
+
+function getAdvisorModel() {
+  return genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    systemInstruction: ADVISOR_SYSTEM_INSTRUCTION,
+    tools: [{ googleSearchRetrieval: {} }],
     generationConfig: {
       responseMimeType: "application/json",
+    },
+  });
+}
+
+export async function* streamElectionAdvice(
+  query: string,
+  userProfile: UserProfile,
+  chatHistory: Content[]
+): AsyncGenerator<string> {
+  if (!apiKey) {
+    yield JSON.stringify({
+      adviceSteps: [{
+        id: "error-no-api",
+        title: "API Key Missing",
+        action: "Please configure your GEMINI_API_KEY in the environment.",
+        reasoning: "The AI assistant cannot generate personalized advice without API access.",
+        confidence: "High",
+      }],
+    });
+    return;
+  }
+
+  const model = getAdvisorModel();
+  const lang = userProfile.language || "English";
+
+  const chat = model.startChat({ history: chatHistory });
+
+  const contextualPrompt = `
+User Profile:
+- Age Group: ${userProfile.ageGroup || "Unknown"}
+- First-time voter: ${userProfile.isFirstTimeVoter === true ? "Yes" : userProfile.isFirstTimeVoter === false ? "No" : "Unknown"}
+- Location: ${userProfile.location || "Unknown"}
+- Preferred Language: ${lang}
+
+Current Voting Plan:
+${JSON.stringify(userProfile.votingPlan || [], null, 2)}
+
+User's Question: "${query}"
+
+Respond in ${lang}. Use grounded, factual information relevant to the user's location.`;
+
+  try {
+    const result = await chat.sendMessageStream(contextualPrompt);
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) yield text;
     }
+  } catch (error) {
+    console.error("Streaming error:", error);
+    yield JSON.stringify({
+      adviceSteps: [{
+        id: "error-stream",
+        title: "Generation Error",
+        action: "Please try asking your question again.",
+        reasoning: "The assistant encountered an error while generating advice.",
+        confidence: "High",
+      }],
+    });
+  }
+}
+
+// ── Impact Simulator Model ────────────────────────────────────────────────
+
+export async function generateImpactSimulation(
+  userProfile: UserProfile,
+  selectedIssues: string[]
+): Promise<ImpactResponse> {
+  if (!apiKey) throw new Error("API key missing");
+
+  const lang = userProfile.language || "English";
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: { responseMimeType: "application/json" },
   });
 
   const prompt = `
-You are VoteWise AI, an intelligent, personal election coach.
+You are a civic education AI. Generate an illustrative impact simulation for a voter.
+
+Voter Profile:
+- Age: ${userProfile.ageGroup || "Unknown"}
+- First-time voter: ${userProfile.isFirstTimeVoter ? "Yes" : "No"}
+- Location: ${userProfile.location || "Unknown"}
+- Issues they care about: ${selectedIssues.join(", ")}
+
+Generate a thoughtful, illustrative scenario comparing civic participation vs non-participation.
+Focus specifically on the issues the voter selected. Be specific, educational, and neutral.
+
+CRITICAL CONSTRAINTS:
+- Do NOT predict actual election results
+- Do NOT mention real political parties or candidates
+- Do NOT generate fake statistics
+- Keep language neutral, educational, and illustrative
+- Label everything as a simulation
+
+Respond in ${lang}.
+
+Return JSON:
+{
+  "participationScenario": { "points": ["point1", "point2", "point3"] },
+  "nonParticipationScenario": { "points": ["point1", "point2", "point3"] },
+  "futureSnapshot": {
+    "withParticipation": "A paragraph describing a positive illustrative future...",
+    "withoutParticipation": "A paragraph describing a muted illustrative future..."
+  },
+  "confidenceLevel": "Illustrative"
+}`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+  return JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+}
+
+// ── Document Scanner Model (Multimodal) ───────────────────────────────────
+
+export async function analyzeDocument(
+  imageBase64: string,
+  mimeType: string,
+  userProfile: UserProfile
+): Promise<ScannerResponse> {
+  if (!apiKey) throw new Error("API key missing");
+
+  const lang = userProfile.language || "English";
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  const prompt = `You are a civic document analysis assistant. Analyze this uploaded document image.
+
+The user is a voter in ${userProfile.location || "India"}.
+
+Tasks:
+1. Identify the document type (e.g., Voter ID Card, Registration Form, Election Notice, Address Proof, etc.)
+2. Extract all visible information (names, IDs, dates, addresses, etc.)
+3. Identify any missing or unclear fields
+4. Provide actionable next steps based on what you see
+
+Respond in ${lang}.
+
+IMPORTANT: Do NOT fabricate information. Only extract what is clearly visible.
+
+Return JSON:
+{
+  "documentType": "Voter ID Card",
+  "extractedInfo": { "field1": "value1", "field2": "value2" },
+  "missingFields": ["field that appears blank or missing"],
+  "nextSteps": [
+    { "id": "scan-step-1", "title": "...", "action": "...", "reasoning": "...", "confidence": "High", "source": "..." }
+  ],
+  "summary": "Brief summary of the document analysis"
+}`;
+
+  const result = await model.generateContent([
+    { text: prompt },
+    { inlineData: { data: imageBase64, mimeType } },
+  ]);
+
+  const text = result.response.text();
+  return JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+}
+
+// ── Legacy non-streaming function (fallback) ──────────────────────────────
+
+export async function getElectionAdvice(
+  query: string,
+  userProfile: UserProfile
+): Promise<AssistantResponse> {
+  if (!apiKey) {
+    return {
+      adviceSteps: [{
+        id: "error-no-api",
+        title: "API Key Missing",
+        action: "Please configure your GEMINI_API_KEY in the environment.",
+        reasoning: "The AI assistant cannot generate personalized advice without API access.",
+        confidence: "High",
+      }],
+    };
+  }
+
+  const model = getAdvisorModel();
+  const result = await model.generateContent(`
 User Profile:
 - Age: ${userProfile.ageGroup || "Unknown"}
 - First-time voter: ${userProfile.isFirstTimeVoter === true ? "Yes" : userProfile.isFirstTimeVoter === false ? "No" : "Unknown"}
@@ -54,48 +274,9 @@ Current Voting Plan:
 ${JSON.stringify(userProfile.votingPlan || [], null, 2)}
 
 User Query: "${query}"
+`);
 
-Instructions:
-1. "adviceSteps": Provide direct advice addressing the query.
-2. "suggestedPlanUpdate": If the user's query changes their situation (e.g., lost ID, moved), suggest an updated Voting Plan. 
-   - DO NOT silently overwrite! Append or insert the new relevant steps.
-   - PRESERVE existing steps and their exact "id" strings.
-   - If no plan update is needed, set "suggestedPlanUpdate" to null.
-3. Every step must have a unique "id" (string), "title", "action", "reasoning", "confidence" ("Low", "Medium", "High"), and optionally a "source" (e.g., "Official Election Guidelines").
-
-Return strictly a valid JSON object matching this schema:
-{
-  "adviceSteps": [
-    { "id": "...", "title": "...", "action": "...", "reasoning": "...", "confidence": "High", "source": "..." }
-  ],
-  "suggestedPlanUpdate": null // OR an array of the updated ElectionStep objects
-}
-`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    
-    try {
-      const parsed = JSON.parse(jsonStr);
-      return parsed as AssistantResponse;
-    } catch (parseError) {
-      console.warn("Failed to parse Gemini JSON:", parseError);
-      return {
-        adviceSteps: [
-          {
-            id: "error-parse",
-            title: "AI Response Error",
-            action: "Please try asking your question again.",
-            reasoning: "The assistant returned an improperly formatted response.",
-            confidence: "High"
-          }
-        ]
-      };
-    }
-  } catch (error) {
-    console.error("Error generating advice:", error);
-    throw new Error("Failed to get advice from VoteWise AI.");
-  }
+  const text = result.response.text();
+  const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
+  return JSON.parse(jsonStr) as AssistantResponse;
 }
