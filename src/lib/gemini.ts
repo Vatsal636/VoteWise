@@ -81,6 +81,7 @@ function getAdvisorModel() {
   return genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     systemInstruction: ADVISOR_SYSTEM_INSTRUCTION,
+    // @ts-ignore - The googleSearch tool name is required by Gemini 2.5 API but missing in the 0.24.1 SDK types
     tools: [{ googleSearch: {} }]
   });
 }
