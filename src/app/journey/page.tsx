@@ -128,7 +128,7 @@ export default function JourneyPage() {
                     </div>
                     
                     {!isExpanded && (
-                      <p className="text-sm text-muted-foreground line-clamp-1">{step.description}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-1">{step.action}</p>
                     )}
 
                     <AnimatePresence>

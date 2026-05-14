@@ -10,6 +10,7 @@ import {
   CheckCircle2, XCircle, ArrowRight, Camera,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { ScannerResponse, ElectionStep } from "@/lib/gemini";
 
 export default function ScannerPage() {
@@ -63,9 +64,13 @@ export default function ScannerPage() {
         body: JSON.stringify({ imageBase64, mimeType, profile }),
       });
 
-      if (!res.ok) throw new Error("Analysis failed");
-      const data: ScannerResponse = await res.json();
-      setResult(data);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || "Analysis failed");
+      }
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Analysis failed");
+      setResult(json.data as ScannerResponse);
     } catch {
       setError("Failed to analyze document. Please try again with a clearer image.");
     } finally {
@@ -127,7 +132,8 @@ export default function ScannerPage() {
             ) : (
               <div className="space-y-6">
                 <div className="relative rounded-xl overflow-hidden border border-border max-h-[400px]">
-                  <img src={preview} alt="Document preview"
+                  <Image src={preview} alt="Document preview"
+                    width={800} height={400} unoptimized
                     className="w-full h-full object-contain max-h-[400px]" />
                   {isAnalyzing && (
                     <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center">

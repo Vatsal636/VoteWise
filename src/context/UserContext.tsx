@@ -35,20 +35,22 @@ const defaultProfile: UserProfile = {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    if (typeof window === "undefined") return defaultProfile;
     const saved = localStorage.getItem("votewise-profile");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Merge with defaults for new fields
-        setProfile({ ...defaultProfile, ...parsed });
-      } catch (e) {
-        console.error("Failed to parse user profile from local storage", e);
+        return { ...defaultProfile, ...parsed };
+      } catch (err) {
+        console.error("Failed to parse user profile from local storage", err);
       }
     }
+    return defaultProfile;
+  });
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
     setIsLoaded(true);
   }, []);
 

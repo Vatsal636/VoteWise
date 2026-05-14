@@ -35,9 +35,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <UserProvider>
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md focus:text-sm focus:font-semibold">
+            Skip to main content
+          </a>
           <DisclaimerBanner />
           <Navbar />
-          <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-8 py-8">
+          <main id="main-content" role="main" aria-label="Main content" className="flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-8 py-8">
             {children}
           </main>
           <Footer />

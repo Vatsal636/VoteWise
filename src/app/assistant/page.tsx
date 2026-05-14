@@ -369,7 +369,9 @@ export default function AssistantPage() {
               placeholder="Ask a follow-up or describe your situation…"
               className="flex-1 rounded-full px-6" disabled={isLoading} />
             <Button type="submit" size="icon" className="rounded-full flex-shrink-0 h-10 w-10"
-              disabled={isLoading || !query.trim()}>
+              disabled={isLoading || !query.trim()}
+              aria-label="Send message"
+            >
               <Send className="h-4 w-4" />
             </Button>
           </form>

@@ -1,21 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
+/**
+ * Custom hook wrapping the browser's SpeechSynthesis API for text-to-speech output.
+ * Provides play/stop controls and tracks the currently speaking message by ID.
+ *
+ * @returns Controls and state for managing speech synthesis.
+ */
 export function useSpeechSynthesis() {
-  const [isSupported, setIsSupported] = useState(true);
+  const [isSupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!window.speechSynthesis;
+  });
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      setIsSupported(false);
-      return;
-    }
-
-    // Attempt to load voices to fix some browser quirks
-    window.speechSynthesis.getVoices();
-  }, []);
 
   const speak = useCallback((text: string, id: string) => {
     if (!isSupported || !window.speechSynthesis) return;

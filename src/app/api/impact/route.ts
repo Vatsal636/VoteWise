@@ -1,23 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImpactSimulation } from "@/lib/gemini";
+import { impactRequestSchema, apiSuccess, apiError } from "@/lib/validation";
 
+/**
+ * POST /api/impact
+ *
+ * Generates a civic impact simulation comparing voter participation vs non-participation.
+ * Uses Gemini's structured JSON output for reliable, parseable responses.
+ *
+ * @security Validates input with Zod schema; requires at least 2 policy issues.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { profile, selectedIssues } = await req.json();
+    const body = await req.json();
+    const parsed = impactRequestSchema.safeParse(body);
 
-    if (!selectedIssues || selectedIssues.length < 2) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "At least 2 issues are required" },
+        apiError("Invalid request", parsed.error),
         { status: 400 }
       );
     }
 
-    const result = await generateImpactSimulation(profile || {}, selectedIssues);
-    return NextResponse.json(result);
+    const { profile, selectedIssues } = parsed.data;
+    const result = await generateImpactSimulation(profile, selectedIssues);
+    return NextResponse.json(apiSuccess(result));
   } catch (error) {
     console.error("Impact API Error:", error);
     return NextResponse.json(
-      { error: "Failed to generate impact simulation" },
+      apiError("Failed to generate impact simulation"),
       { status: 500 }
     );
   }

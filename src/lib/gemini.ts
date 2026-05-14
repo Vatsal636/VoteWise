@@ -1,3 +1,18 @@
+/**
+ * @module lib/gemini
+ * @description Core AI integration layer for VoteWise AI.
+ *
+ * This module provides all Gemini AI capabilities used across the platform:
+ * - **Multi-turn conversational advisor** with Google Search grounding and SSE streaming
+ * - **Impact simulation generator** with structured JSON output
+ * - **Multimodal document scanner** via Gemini Vision for civic document analysis
+ *
+ * All functions enforce structured JSON output and support multilingual responses
+ * based on the user's language preference stored in their profile.
+ *
+ * @see {@link https://ai.google.dev/gemini-api/docs} Gemini API Documentation
+ */
+
 import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
@@ -5,6 +20,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+/** A single actionable step in a voter's election plan. */
 export type ElectionStep = {
   id: string;
   title: string;
@@ -14,11 +30,13 @@ export type ElectionStep = {
   source?: string;
 };
 
+/** Structured response from the AI advisor containing advice and optional plan updates. */
 export type AssistantResponse = {
   adviceSteps: ElectionStep[];
   suggestedPlanUpdate?: ElectionStep[] | null;
 };
 
+/** Structured response from the impact simulation containing participation scenarios. */
 export type ImpactResponse = {
   participationScenario: { points: string[] };
   nonParticipationScenario: { points: string[] };
@@ -26,6 +44,7 @@ export type ImpactResponse = {
   confidenceLevel: string;
 };
 
+/** Structured response from the document scanner with extracted information. */
 export type ScannerResponse = {
   documentType: string;
   extractedInfo: Record<string, string>;
@@ -34,6 +53,7 @@ export type ScannerResponse = {
   summary: string;
 };
 
+/** User profile containing voter information and preferences. */
 export type UserProfile = {
   ageGroup: string;
   isFirstTimeVoter: boolean | null;
@@ -77,15 +97,31 @@ Rules for suggestedPlanUpdate:
 
 // ── Advisor Model (Chat + Grounding + Streaming) ──────────────────────────
 
+/**
+ * Returns a configured Gemini 2.5 Flash model instance for the civic advisor.
+ * Includes Google Search grounding for real-time factual data.
+ */
 function getAdvisorModel() {
   return genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     systemInstruction: ADVISOR_SYSTEM_INSTRUCTION,
-    // @ts-ignore - The googleSearch tool name is required by Gemini 2.5 API but missing in the 0.24.1 SDK types
+    // @ts-expect-error - googleSearch is the correct tool name for Gemini 2.5 but is not yet in the @google/generative-ai 0.24.x type definitions
     tools: [{ googleSearch: {} }]
   });
 }
 
+/**
+ * Streams election advice from the Gemini AI advisor using Server-Sent Events.
+ *
+ * This function implements multi-turn chat with full conversation history,
+ * Google Search grounding for factual accuracy, and token-by-token streaming
+ * for reduced perceived latency.
+ *
+ * @param query - The user's election-related question.
+ * @param userProfile - The user's civic profile (age, location, voter status).
+ * @param chatHistory - Previous conversation messages for multi-turn context.
+ * @yields Chunks of the AI response as they are generated.
+ */
 export async function* streamElectionAdvice(
   query: string,
   userProfile: UserProfile,
@@ -121,7 +157,9 @@ ${JSON.stringify(userProfile.votingPlan || [], null, 2)}
 
 User's Question: "${query}"
 
-Respond in ${lang}. Use grounded, factual information relevant to the user's location.`;
+Respond in ${lang}. Use grounded, factual information relevant to the user's location.
+
+CRITICAL: You MUST respond EXCLUSIVELY with a JSON object inside a \`\`\`json markdown code block. Do NOT include any conversational text before or after the code block.`;
 
   try {
     const result = await chat.sendMessageStream(contextualPrompt);
@@ -145,6 +183,17 @@ Respond in ${lang}. Use grounded, factual information relevant to the user's loc
 
 // ── Impact Simulator Model ────────────────────────────────────────────────
 
+/**
+ * Generates a civic impact simulation comparing voter participation vs non-participation.
+ *
+ * Uses Gemini's structured JSON output to produce illustrative (non-predictive)
+ * scenarios tailored to the user's profile and selected policy issues.
+ *
+ * @param userProfile - The voter's civic profile.
+ * @param selectedIssues - Policy issues the voter cares about (e.g., "education", "healthcare").
+ * @returns A structured impact simulation with participation/non-participation scenarios.
+ * @throws Error if the API key is missing or the Gemini API call fails.
+ */
 export async function generateImpactSimulation(
   userProfile: UserProfile,
   selectedIssues: string[]
@@ -196,6 +245,18 @@ Return JSON:
 
 // ── Document Scanner Model (Multimodal) ───────────────────────────────────
 
+/**
+ * Analyzes a civic document image using Gemini Vision (multimodal AI).
+ *
+ * Accepts a base64-encoded image of a Voter ID, registration form, or election notice,
+ * and returns extracted information, missing fields, and actionable next steps.
+ *
+ * @param imageBase64 - The base64-encoded image data (without the data URL prefix).
+ * @param mimeType - The MIME type of the image (e.g., "image/jpeg", "image/png").
+ * @param userProfile - The voter's civic profile for contextual analysis.
+ * @returns Structured analysis with extracted data and recommended actions.
+ * @throws Error if the API key is missing or the Gemini API call fails.
+ */
 export async function analyzeDocument(
   imageBase64: string,
   mimeType: string,
@@ -245,6 +306,14 @@ Return JSON:
 
 // ── Legacy non-streaming function (fallback) ──────────────────────────────
 
+/**
+ * Non-streaming fallback for generating election advice.
+ * Used when SSE streaming is not supported or needed.
+ *
+ * @param query - The user's election-related question.
+ * @param userProfile - The user's civic profile.
+ * @returns Structured advice response with action steps.
+ */
 export async function getElectionAdvice(
   query: string,
   userProfile: UserProfile

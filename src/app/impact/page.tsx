@@ -65,9 +65,9 @@ export default function ImpactSimulatorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile, selectedIssues: localIssues }),
       });
-      if (!res.ok) throw new Error("Failed");
-      const data: ImpactResponse = await res.json();
-      setSimulationData(data);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Failed");
+      setSimulationData(json.data as ImpactResponse);
     } catch {
       setError("Failed to generate simulation. Please try again.");
     } finally {

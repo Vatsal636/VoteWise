@@ -1,19 +1,32 @@
 import { NextRequest } from "next/server";
 import { streamElectionAdvice } from "@/lib/gemini";
+import { adviceRequestSchema, apiError } from "@/lib/validation";
 import { Content } from "@google/generative-ai";
 
+/**
+ * POST /api/advice
+ *
+ * Streams AI-generated election advice using Server-Sent Events (SSE).
+ * Supports multi-turn conversation with full chat history context.
+ *
+ * @security Validates input with Zod schema before processing.
+ * @performance Uses SSE streaming for token-by-token delivery, reducing perceived latency.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { query, profile, history } = await req.json();
+    const body = await req.json();
+    const parsed = adviceRequestSchema.safeParse(body);
 
-    if (!query) {
-      return new Response(JSON.stringify({ error: "Query is required" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+    if (!parsed.success) {
+      return new Response(
+        JSON.stringify(apiError("Invalid request", parsed.error)),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    const chatHistory: Content[] = (history || []).map(
+    const { query, profile, history } = parsed.data;
+
+    const chatHistory: Content[] = history.map(
       (msg: { role: string; text: string }) => ({
         role: msg.role === "assistant" ? "model" : msg.role,
         parts: [{ text: msg.text }],
@@ -25,11 +38,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const generator = streamElectionAdvice(
-            query,
-            profile || {},
-            chatHistory
-          );
+          const generator = streamElectionAdvice(query, profile, chatHistory);
 
           for await (const chunk of generator) {
             const payload = JSON.stringify({ text: chunk });
@@ -59,7 +68,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("API Error:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify(apiError("Internal server error")),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
